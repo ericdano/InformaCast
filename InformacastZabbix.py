@@ -66,6 +66,9 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             print(f"Error decoding JSON: {e}")
             break
     all_records.drop(columns=['index','link','isDesktopNotifier'], inplace=True)
+    #drop unnecessary columns if they exist
+
+    """
     output = []
     for index, row in all_records.iterrows():
         output.append({
@@ -75,7 +78,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             "{#ITEMPORT}": row['port'],
             "{#ITEMVOL}": row['volume']
         })
-    #drop unnecessary columns if they exist
+    """
     return all_records
 
 def main(target_name):
