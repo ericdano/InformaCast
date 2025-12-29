@@ -67,20 +67,34 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             break
     all_records.drop(columns=['index','link','isDesktopNotifier'], inplace=True)
     #drop unnecessary columns if they exist
-
-    """
-    output = []
-    for index, row in all_records.iterrows():
-        output.append({
-            "{#ITEMNAME}": row['name'].
-            "{#ITEMID}": row['id'],
-            "{#ITEMIP}": row['ipAddress'],
-            "{#ITEMPORT}": row['port'],
-            "{#ITEMVOL}": row['volume']
-        })
-    """
     return all_records
 
+def discover(url, token, limit):
+    """Converts DataFrame rows into Zabbix LLD JSON format"""
+    df = fetch_all_informa_cast_data(url, token, limit)
+    
+    # Convert DataFrame to list of dictionaries for discovery
+    lld_data = []
+    for _, row in df.iterrows():
+        lld_data.append({
+            "{#ITEMNAME}": str(row["name"]),
+            "{#ITEMIP}":   str(row["ip"]),
+            "{#ITEMMAC}":  str(row["mac"]),
+            "{#ITEMID}":   str(row["id"])
+        })
+    print(json.dumps(lld_data))
+
+def get_value(target_name, attribute, url, token, limit):
+    """Uses Pandas to find a specific value based on the item name"""
+    df = fetch_all_informa_cast_data(url, token, limit)
+    
+    try:
+        # Filter where name matches, then grab the specific column
+        result = df.loc[df['name'] == target_name, attribute].values[0]
+        print(result)
+    except (IndexError, KeyError):
+        print("Not Found")
+"""
 def main(target_name):
     configs = getConfigs()
     userid = configs['InformaCastUserName']
@@ -91,5 +105,13 @@ def main(target_name):
     #to_print = results.to_json()
     #print(to_print)
     return results
-if __name__ == '__main__':
-  print(main(sys.argv[1]))
+"""
+
+if __name__ == "__main__":
+    configs = getConfigs()
+    token = configs['InformaCastToken']
+    url = configs['InformaCastURL'] + 'IPSpeakers'
+    if len(sys.argv) == 1:
+        discover(url, token, limit=100)
+    elif len(sys.argv) == 3:
+        get_value(sys.argv[1], sys.argv[2], url, token, limit=100)
