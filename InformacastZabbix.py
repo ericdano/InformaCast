@@ -66,19 +66,27 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             print(f"Error decoding JSON: {e}")
             break
     all_records.drop(columns=['index','link','isDesktopNotifier'], inplace=True)
+    output = []
+    for index, row in all_records.iterrows():
+        output.append({
+            "{#ITEMNAME}": row['name'].
+            "{#ITEMID}": row['id'],
+            "{#ITEMIP}": row['ipAddress'],
+            "{#ITEMPORT}": row['port'],
+            "{#ITEMVOL}": row['volume']
+        })
     #drop unnecessary columns if they exist
     return all_records
 
-def main():
-    global msgbody,thelogger
+def main(target_name):
     configs = getConfigs()
     userid = configs['InformaCastUserName']
     passwd = configs['InformaCastPassword']
     token = configs['InformaCastToken']
     url = configs['InformaCastURL'] + 'IPSpeakers'
     results = fetch_all_informa_cast_data(url, token, limit=100)
-    to_print = results.to_json()
-    print(to_print)
-
+    #to_print = results.to_json()
+    #print(to_print)
+    return results
 if __name__ == '__main__':
-  main()
+  print(main(sys.argv[1]))
