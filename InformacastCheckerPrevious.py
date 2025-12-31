@@ -126,8 +126,8 @@ def send_status_email(problem_speakers,all_speakers,configs):
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    #msg['To'] = 'alltechnicians@auhsdschools.org'
-    msg['To'] = 'edannewitz@auhsdschools.org'
+    msg['To'] = 'alltechnicians@auhsdschools.org'
+    #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
@@ -142,7 +142,7 @@ def main():
     userid = configs['InformaCastUserName']
     passwd = configs['InformaCastPassword']
     token = configs['InformaCastToken']
-    url = configs['InformaCastURL'] + '/Devices/?includeAttributes=true'
+    url = configs['InformaCastURL'] + '/Devices'
     results = fetch_all_informa_cast_data(url, token, limit=100)
     matches = results[results['isRegistered'] == 'false']
     send_status_email(matches,results,configs)
