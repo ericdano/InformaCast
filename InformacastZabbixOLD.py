@@ -4,7 +4,6 @@ from pathlib import Path
 import requests
 import warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from pyzabbix import ZabbixAPI
 
 #load configs
 def getConfigs():
@@ -73,54 +72,38 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     #drop unnecessary columns if they exist
     return all_records
 
-def sync_zabbix_items(configs, all_inforacast_items_df):
-    zapi = ZabbixAPI(ZABBIX_URL)
-    zapi.login(configs['ZabbixAdminUser'], configs['ZabbixAdminPassword'])
+def discover(url, token, limit):
+    """Converts DataFrame rows into Zabbix LLD JSON format"""
+    df = fetch_all_informa_cast_data(url, token, limit)
     
-    # Convert DataFrame to a list of dictionaries for easier iteration
-    items_to_sync = all_inforacast_items_df.to_dict('records')
+    # Convert DataFrame to list of dictionaries for discovery
+    lld_data = []
+    for _, row in df.iterrows():
+        lld_data.append({
+            "{#ITEMNAME}": str(row["description"]),
+            "{#ITEMIP}":   str(row["isRegistered"]),
+            "{#ITEMID}":   str(row["id"])
 
-    for item in items_to_sync:
-        # Search for existing item
-        existing_items = zapi.item.get(
-            filter={"name": item['name']},
-            hostids=HOST_ID
-        )
+        })
+    print(json.dumps(lld_data))
 
-        # Prepare description string
-        full_description = f"IP: {item['ipaddress']} | {item['description']}"
-
-        if existing_items:
-            # Update
-            item_id = existing_items[0]['itemid']
-            zapi.item.update(
-                itemid=item_id,
-                status=int(item['status']), # Ensure type is int, not np.int64
-                description=full_description
-            )
-            print(f"Updated: {item['name']}")
-        else:
-            # Create
-            new_item = zapi.item.create(
-                name=item['name'],
-                key_=item['name'].lower().replace(" ", "."),
-                hostid=HOST_ID,
-                type=2, 
-                value_type=4,
-                interfaceid=INTERFACE_ID,
-                status=int(item['status']),
-                description=full_description
-            )
-            print(f"Created: {item['name']}")
-
-    zapi.logout()
-
+def get_value(target_name, attribute, url, token, limit):
+    """Uses Pandas to find a specific value based on the item name"""
+    df = fetch_all_informa_cast_data(url, token, limit)
+    
+    try:
+        # Filter where name matches, then grab the specific column
+        result = df.loc[df['description'] == target_name, attribute].values[0]
+        print(result)
+    except (IndexError, KeyError):
+        print("Not Found")
 
 
 if __name__ == "__main__":
     configs = getConfigs()
     token = configs['InformaCastToken']
-    url = configs['InformaCastURL'] + '/Devices/?includeAttributes=true'
-    results = fetch_all_informa_cast_data(url, token, limit=100)  
-    # Pass the DataFrame to the sync function
-    sync_zabbix_items(configs,results)
+    url = configs['InformaCastURL'] + '/Devices'
+    if len(sys.argv) == 1:
+        discover(url, token, limit=100)
+    elif len(sys.argv) == 3:
+        get_value(sys.argv[1], sys.argv[2], url, token, limit=100)

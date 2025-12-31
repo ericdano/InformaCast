@@ -44,11 +44,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             response = requests.get(current_url, headers=headers, verify=False)
             response.raise_for_status() # Raise an exception for bad status codes
             data = response.json()
-            #print(data)
-            results = pd.json_normalize(response.json(),record_path="data", max_level=1)
-            #results = pd.json_normalize(response.json(),record_path="attributes", max_level=1)
-          
-            
+            results = pd.json_normalize(response.json(),record_path="data", max_level=1)            
             all_records = pd.concat([all_records,results], ignore_index=True)
             # Assuming the main data is in a key like 'results' or 'content'
             # Adjust 'results' based on actual API response structure
