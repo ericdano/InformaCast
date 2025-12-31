@@ -27,11 +27,11 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     """
     all_records = pd.DataFrame()
     current_url = f"{base_url}" # Start with offset 0
-
+    warnings.simplefilter('ignore', InsecureRequestWarning)
     # The API might also use a 'next' URL in the response body instead of offset/limit
     # This example assumes limit/offset or similar parameters work.
     # If the API returns a 'next' link, you would update current_url from the response.
-    warnings.simplefilter('ignore', InsecureRequestWarning)
+
     while current_url:
         headers = {
             "Authorization": f"Basic {token}" # Use "Bearer" for cloud API
@@ -68,7 +68,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON: {e}")
             break
-    all_records.drop(columns=['index','link','isDesktopNotifier'], inplace=True)
+    all_records.drop(columns=['index','link'], inplace=True)
     #drop unnecessary columns if they exist
     return all_records
 
@@ -80,10 +80,10 @@ def discover(url, token, limit):
     lld_data = []
     for _, row in df.iterrows():
         lld_data.append({
-            "{#ITEMNAME}": str(row["name"]),
-            "{#ITEMIP}":   str(row["ip"]),
-            "{#ITEMMAC}":  str(row["mac"]),
+            "{#ITEMNAME}": str(row["description"]),
+            "{#ITEMIP}":   str(row["isRegistered"]),
             "{#ITEMID}":   str(row["id"])
+
         })
     print(json.dumps(lld_data))
 
@@ -93,7 +93,7 @@ def get_value(target_name, attribute, url, token, limit):
     
     try:
         # Filter where name matches, then grab the specific column
-        result = df.loc[df['name'] == target_name, attribute].values[0]
+        result = df.loc[df['description'] == target_name, attribute].values[0]
         print(result)
     except (IndexError, KeyError):
         print("Not Found")
@@ -102,7 +102,7 @@ def get_value(target_name, attribute, url, token, limit):
 if __name__ == "__main__":
     configs = getConfigs()
     token = configs['InformaCastToken']
-    url = configs['InformaCastURL'] + 'IPSpeakers'
+    url = configs['InformaCastURL'] + '/Devices'
     if len(sys.argv) == 1:
         discover(url, token, limit=100)
     elif len(sys.argv) == 3:
