@@ -8,7 +8,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 #load configs
 def getConfigs():
   # Function to get passwords and API keys for Acalanes Canvas and stuff
-  confighome = Path.home() / ".Acalanes" / "Acalanes.json"
+  confighome = Path('/opt/.Acalanes/Acalanes.json')
   with open(confighome) as f:
     configs = json.load(f)
   return configs
