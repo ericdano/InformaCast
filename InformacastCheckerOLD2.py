@@ -6,8 +6,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from logging.handlers import SysLogHandler
-import warnings
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 
 #load configs
 def getConfigs():
@@ -31,7 +30,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     """
     all_records = pd.DataFrame()
     current_url = f"{base_url}" # Start with offset 0
-    warnings.simplefilter('ignore', InsecureRequestWarning)
+
     # The API might also use a 'next' URL in the response body instead of offset/limit
     # This example assumes limit/offset or similar parameters work.
     # If the API returns a 'next' link, you would update current_url from the response.
@@ -44,9 +43,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
             response = requests.get(current_url, headers=headers, verify=False)
             response.raise_for_status() # Raise an exception for bad status codes
             data = response.json()
-            #print(data)
             results = pd.json_normalize(response.json(),record_path="data", max_level=1)
-            #results = pd.read_json(data)
             all_records = pd.concat([all_records,results], ignore_index=True)
             # Assuming the main data is in a key like 'results' or 'content'
             # Adjust 'results' based on actual API response structure
@@ -74,7 +71,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON: {e}")
             break
-    all_records.drop(columns=['index','link'], inplace=True)
+    all_records.drop(columns=['index'], inplace=True)
     return all_records
 
 def send_status_email(problem_speakers,all_speakers,configs):
@@ -127,7 +124,6 @@ def send_status_email(problem_speakers,all_speakers,configs):
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'alltechnicians@auhsdschools.org'
-    #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
@@ -142,9 +138,9 @@ def main():
     userid = configs['InformaCastUserName']
     passwd = configs['InformaCastPassword']
     token = configs['InformaCastToken']
-    url = configs['InformaCastURL'] + '/Devices'
+    url = configs['InformaCastURL'] + 'IPSpeakers'
     results = fetch_all_informa_cast_data(url, token, limit=100)
-    matches = results[results['isRegistered'] == 'false']
+    matches = results[results['status'] == 'Not registered']
     send_status_email(matches,results,configs)
 #    with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
 #        print(r)

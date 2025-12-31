@@ -1,6 +1,9 @@
 import pandas as pd
-import requests, json, os
+import requests, json, os, sys
 from pathlib import Path
+import requests
+import warnings
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 #load configs
 def getConfigs():
@@ -28,7 +31,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     # The API might also use a 'next' URL in the response body instead of offset/limit
     # This example assumes limit/offset or similar parameters work.
     # If the API returns a 'next' link, you would update current_url from the response.
-
+    warnings.simplefilter('ignore', InsecureRequestWarning)
     while current_url:
         headers = {
             "Authorization": f"Basic {token}" # Use "Bearer" for cloud API
@@ -94,18 +97,7 @@ def get_value(target_name, attribute, url, token, limit):
         print(result)
     except (IndexError, KeyError):
         print("Not Found")
-"""
-def main(target_name):
-    configs = getConfigs()
-    userid = configs['InformaCastUserName']
-    passwd = configs['InformaCastPassword']
-    token = configs['InformaCastToken']
-    url = configs['InformaCastURL'] + 'IPSpeakers'
-    results = fetch_all_informa_cast_data(url, token, limit=100)
-    #to_print = results.to_json()
-    #print(to_print)
-    return results
-"""
+
 
 if __name__ == "__main__":
     configs = getConfigs()
