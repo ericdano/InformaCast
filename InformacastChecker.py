@@ -185,31 +185,31 @@ def send_status_email_details(problem_speakers,all_speakers,configs):
     s.send_message(msg)
 
 def main():
-    global msgbody,thelogger
+    global thelogger
     configs = getConfigs()
     thelogger = logging.getLogger('MyLogger')
     thelogger.setLevel(logging.DEBUG)
     handler = logging.handlers.SysLogHandler(address = (configs['logserveraddress'],514))
     thelogger.addHandler(handler)
-    thelogger.info('Starting InformaCast tester')
+    thelogger.info('Starting InformaCast Daily Status Checker')
     userid = configs['InformaCastUserName']
     passwd = configs['InformaCastPassword']
     token = configs['InformaCastToken']
     url = configs['InformaCastURL'] + '/Devices/?includeAttributes=true'
+    thelogger.info('InformaCast Daily Status Checker - Fetching records from InformaCast')
     all_results = fetch_all_informa_cast_data(url, token, limit=100)
-    print(all_results)
     columns_keep =['id','description','attributes.IsRegistered','attributes.Description','attributes.Name','attributes.InformaCastDeviceType','attributes.MACAddress','attributes.Volume']
     results = all_results[columns_keep].copy()
+    thelogger.info('InformaCast Daily Status Checker - Looking for IP Speakers that are not registered')
     matches = results[results['attributes.IsRegistered'] == 'false']
     # Count records containing "IP Speaker"
     ip_speaker_count = results['description'].str.contains('IP Speaker', case=False, na=False).sum()
     # Count records containing "Cisco Phone"
     cisco_phone_count = results['description'].str.contains('Cisco IP Phone', case=False, na=False).sum()
-    #matches = results
+    # send out email
+    thelogger.info('InformaCast Daily Status Checker - Sending Emails')
     send_status_email(matches,ip_speaker_count,cisco_phone_count,configs)
-#    with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
-#        print(r)
-#    r.to_csv('informacasttest.csv',index=False)
+    thelogger.info('InformaCast Daily Status Checker - Done')
     print('Done!')
 
 if __name__ == '__main__':
