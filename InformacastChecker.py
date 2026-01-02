@@ -76,9 +76,11 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON: {e}")
             break
-    all_records.drop(columns=['index','link'], inplace=True)
+    
+    all_records.drop(columns=['index'], inplace=True)
     #print(all_records)
     return all_records
+
 def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
     html_body = f"""
@@ -127,8 +129,8 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    msg['To'] = 'alltechnicians@auhsdschools.org'
-    #msg['To'] = 'edannewitz@auhsdschools.org'
+    #msg['To'] = 'alltechnicians@auhsdschools.org'
+    msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
@@ -181,8 +183,8 @@ def send_status_email_details(problem_speakers,all_speakers,configs):
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    #msg['To'] = 'alltechnicians@auhsdschools.org'
-    msg['To'] = 'edannewitz@auhsdschools.org'
+    msg['To'] = 'alltechnicians@auhsdschools.org'
+    #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
@@ -198,11 +200,13 @@ def main():
     passwd = configs['InformaCastPassword']
     token = configs['InformaCastToken']
     url = configs['InformaCastURL'] + '/Devices/?includeAttributes=true'
-    results = fetch_all_informa_cast_data(url, token, limit=100)
+    all_results = fetch_all_informa_cast_data(url, token, limit=100)
+    print(all_results)
+    columns_keep =['id','description','attributes.IsRegistered','attributes.Description','attributes.Name','attributes.InformaCastDeviceType','attributes.MACAddress','attributes.Volume']
+    results = all_results[columns_keep].copy()
     matches = results[results['attributes.IsRegistered'] == 'false']
     # Count records containing "IP Speaker"
     ip_speaker_count = results['description'].str.contains('IP Speaker', case=False, na=False).sum()
-
     # Count records containing "Cisco Phone"
     cisco_phone_count = results['description'].str.contains('Cisco IP Phone', case=False, na=False).sum()
     #matches = results
