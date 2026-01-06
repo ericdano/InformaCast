@@ -115,6 +115,14 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
         <body>
             <p>There are {total_phones} Cisco Phones and {total_speakers} IP Speakers registered in InformaCast.
             <p>
+    """
+    if problem_speakers.empty:
+        html_body += f"""<p>Good job team, there appear to be NO unregistered IP Speakers at the moment!</p>
+        <p><p>
+        </html>
+    """
+    else:
+        html_body += f"""
             <p>Current IP Speakers that are NOT registered:</p>
             {html_table_problems}
             <p><p>
@@ -125,8 +133,8 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    #msg['To'] = 'alltechnicians@auhsdschools.org'
-    msg['To'] = 'edannewitz@auhsdschools.org'
+    msg['To'] = 'alltechnicians@auhsdschools.org'
+    #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
@@ -179,8 +187,8 @@ def send_status_email_details(problem_speakers,all_speakers,configs):
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    msg['To'] = 'alltechnicians@auhsdschools.org'
-    #msg['To'] = 'edannewitz@auhsdschools.org'
+    #msg['To'] = 'alltechnicians@auhsdschools.org'
+    msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
