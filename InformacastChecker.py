@@ -138,7 +138,7 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
 
-def send_status_email_details(problem_speakers,all_speakers,configs):
+def send_status_email_details(problem_speakers,all_speakers,total_speakers, total_phones,configs):
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
     html_all = all_speakers.to_html(index=False, justify='left', classes='black-table')
     html_body = f"""
@@ -175,19 +175,20 @@ def send_status_email_details(problem_speakers,all_speakers,configs):
         </style>
         </head>
         <body>
+            <p>There are {total_phones} Cisco Phones and {total_speakers} IP Speakers registered in InformaCast.
+            <p>
             <p>Current IP Speakers that are NOT registered:</p>
             {html_table_problems}
             <p><p>
-            <p>All IP Speakers that are registered:</p>
+            <p>All IP Speakers:</p>
             {html_all}
         </body>
         </html>
     """
     s = smtplib.SMTP(configs['SMTPServerAddress'])
     msg = MIMEMultipart()
-    msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    msg['Subject'] = str("InformaCast Speaker Statuses (Detailed) "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    #msg['To'] = 'alltechnicians@auhsdschools.org'
     msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
@@ -217,6 +218,7 @@ def main():
     # send out email
     thelogger.info('InformaCast Daily Status Checker - Sending Emails')
     send_status_email(matches,ip_speaker_count,cisco_phone_count,configs)
+    send_status_email_details(matches,all_results,ip_speaker_count,cisco_phone_count,configs)
     thelogger.info('InformaCast Daily Status Checker - Done')
     print('Done!')
 
