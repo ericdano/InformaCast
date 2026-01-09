@@ -78,6 +78,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     return all_records
 
 def send_status_email(problem_speakers,total_speakers, total_phones,configs):
+    whichheader = 0
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
     html_body = f"""
         <html>
@@ -117,6 +118,7 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
             <p>
     """
     if problem_speakers.empty:
+        whichheader = 1
         html_body += f"""<p>Good job team, there appear to be NO unregistered IP Speakers at the moment!</p>
         <p><p>
         </html>
@@ -131,7 +133,10 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     """
     s = smtplib.SMTP(configs['SMTPServerAddress'])
     msg = MIMEMultipart()
-    msg['Subject'] = str("InformaCast Speaker Statuses "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    if whichheader == 1:
+        msg['Subject'] = str("InformaCast Speaker Statuses - All Good! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    else:
+        msg['Subject'] = str("InformaCast Speaker Statuses - Problems Found! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'alltechnicians@auhsdschools.org'
     #msg['To'] = 'edannewitz@auhsdschools.org'
