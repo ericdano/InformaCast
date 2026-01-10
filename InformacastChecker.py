@@ -9,6 +9,11 @@ from logging.handlers import SysLogHandler
 import warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
+"""
+This script checks InformaCast for IP Speakers that are not registered and sends email notifications.
+Version 0.1 - Initial version 1-9-2024
+
+"""
 #load configs
 def getConfigs():
   # Function to get passwords and API keys for Acalanes Canvas and stuff
