@@ -1,12 +1,11 @@
 import pandas as pd
-import requests, json, logging, smtplib, datetime, gam, arrow, os
+import requests, json, logging, smtplib, datetime, gam, arrow, os, warnings
 from pathlib import Path
 from email.message import EmailMessage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from logging.handlers import SysLogHandler
-import warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 """
@@ -27,7 +26,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     Fetches all paginated data from an InformaCast API endpoint.
 
     Args:
-        base_url (str): The initial API endpoint URL (e.g., 'api.icmobile.singlewire.com').
+        base_url (str): The initial API endpoint URL (e.g., 'https://yourinforacastserver.org').
         api_key_or_token (str): Your API key or Bearer token for authorization.
         limit (int): The number of items to retrieve per request (optional).
 
@@ -37,9 +36,7 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     all_records = pd.DataFrame()
     current_url = f"{base_url}" # Start with offset 0
     warnings.simplefilter('ignore', InsecureRequestWarning)
-    # The API might also use a 'next' URL in the response body instead of offset/limit
-    # This example assumes limit/offset or similar parameters work.
-    # If the API returns a 'next' link, you would update current_url from the response.
+    # The API also use a 'next' URL in the response body instead of offset/limit
 
     while current_url:
         headers = {
@@ -80,10 +77,13 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
     
     all_records.drop(columns=['index'], inplace=True)
     #print(all_records)
+    # The above is for testing purposes only
     return all_records
 
 def send_status_email(problem_speakers,total_speakers, total_phones,configs):
+    # Determine email subject based on presence of problems
     whichheader = 0
+    # Create HTML table from DataFrame
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
     html_body = f"""
         <html>
@@ -144,6 +144,7 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
         msg['Subject'] = str("InformaCast Speaker Statuses - Problems Found! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'alltechnicians@auhsdschools.org'
+    # test message to self
     #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     s.send_message(msg)
