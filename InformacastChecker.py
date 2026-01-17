@@ -21,7 +21,7 @@ def getConfigs():
     configs = json.load(f)
   return configs
 
-def fetch_all_informa_cast_data(base_url, token, limit=100):
+def fetch_all_informa_cast_data(base_url, token, configs, limit=100):
     """
     Fetches all paginated data from an InformaCast API endpoint.
 
@@ -70,15 +70,40 @@ def fetch_all_informa_cast_data(base_url, token, limit=100):
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
+            send_error_email(str(e),configs)
             break
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON: {e}")
+            send_error_email(str(e),configs)
             break
     
     all_records.drop(columns=['index'], inplace=True)
     #print(all_records)
     # The above is for testing purposes only
     return all_records
+
+def send_error_email(error_message,configs):
+    s = smtplib.SMTP(configs['SMTPServerAddress'])
+    msg = MIMEMultipart()
+    msg['Subject'] = str("InformaCast Speaker Status Checker Error "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    msg['From'] = configs['SMTPAddressFrom']
+    html_body = f"""
+    <html>
+        <head>
+        <body>
+            <p>There was some sorta connection issue with informacast while trying to fetch data.</p>
+            <p>{error_message}</p>
+        </body>
+    </html>
+    """
+    s = smtplib.SMTP(configs['SMTPServerAddress'])
+    msg = MIMEMultipart()
+    msg['To'] = 'alltechnicians@auhsdschools.org'
+    # test message to self
+    #msg['To'] = 'edannewitz@auhsdschools.org'
+    msg.attach(MIMEText(html_body,'html'))
+    s.send_message(msg)
+
 
 def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     # Determine email subject based on presence of problems
@@ -217,7 +242,7 @@ def main():
     token = configs['InformaCastToken']
     url = configs['InformaCastURL'] + '/Devices/?includeAttributes=true'
     thelogger.info('InformaCast Daily Status Checker - Fetching records from InformaCast')
-    all_results = fetch_all_informa_cast_data(url, token, limit=100)
+    all_results = fetch_all_informa_cast_data(url, token, configs, limit=100)
     columns_keep =['id','description','attributes.IsRegistered','attributes.Description','attributes.Name','attributes.InformaCastDeviceType','attributes.MACAddress','attributes.Volume']
     results = all_results[columns_keep].copy()
     thelogger.info('InformaCast Daily Status Checker - Looking for IP Speakers that are not registered')
