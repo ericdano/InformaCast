@@ -83,10 +83,6 @@ def fetch_all_informa_cast_data(base_url, token, configs, limit=100):
     return all_records
 
 def send_error_email(error_message,configs):
-    s = smtplib.SMTP(configs['SMTPServerAddress'])
-    msg = MIMEMultipart()
-    msg['Subject'] = str("InformaCast Speaker Status Checker Error "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
-    msg['From'] = configs['SMTPAddressFrom']
     html_body = f"""
     <html>
         <head>
@@ -96,13 +92,33 @@ def send_error_email(error_message,configs):
         </body>
     </html>
     """
-    #s = smtplib.SMTP(configs['SMTPServerAddress'])
-    #msg = MIMEMultipart()
-    msg['To'] = 'edannewitz@auhsdschools.org'
-    # test message to self
+    msg = MIMEMultipart()
     #msg['To'] = 'edannewitz@auhsdschools.org'
+    # test message to self
+    msg['To'] = 'edannewitz@auhsdschools.org'
+    msg['From'] = configs['SMTPAddressFrom']
+    msg['Subject'] = str("InformaCast Speaker Status Checker Error "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+
     msg.attach(MIMEText(html_body,'html'))
-    s.send_message(msg)
+    try:
+            # Using 'with' automatically handles s.quit() even if an error occurs
+            with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
+                # Uncomment if your server requires authentication:
+                # s.starttls()
+                # s.login(configs['user'], configs['pass'])
+                
+                s.send_message(msg)
+                print(f"Email sent successfully {msg['Subject']}")
+                return True
+
+    except smtplib.SMTPConnectError:
+        print("Error: Could not connect to the SMTP server. Check the address/port.")
+    except smtplib.SMTPAuthenticationError:
+        print("Error: SMTP Authentication failed. Check your credentials.")
+    except Exception as e:
+        print(f"An unexpected error occurred while sending email: {e}")
+        
+    return False
 
 
 def send_status_email(problem_speakers,total_speakers, total_phones,configs):
@@ -161,7 +177,6 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
         </body>
         </html>
     """
-    s = smtplib.SMTP(configs['SMTPServerAddress'])
     msg = MIMEMultipart()
     if whichheader == 1:
         msg['Subject'] = str("InformaCast Speaker Statuses - All Good! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
@@ -180,7 +195,7 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
                 # s.login(configs['user'], configs['pass'])
                 
                 s.send_message(msg)
-                print(f"Email sent successfully: {subject_status}")
+                print(f"Email sent successfully {msg['Subject']}")
                 return True
 
     except smtplib.SMTPConnectError:
@@ -193,6 +208,7 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     return False
 
 def send_status_email_details(problem_speakers,all_speakers,total_speakers, total_phones,configs):
+    # This only sends the detailed email with all speakers to self for review
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
     html_all = all_speakers.to_html(index=False, justify='left', classes='black-table')
     html_body = f"""
@@ -245,7 +261,25 @@ def send_status_email_details(problem_speakers,all_speakers,total_speakers, tota
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
-    s.send_message(msg)
+    try:
+            # Using 'with' automatically handles s.quit() even if an error occurs
+            with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
+                # Uncomment if your server requires authentication:
+                # s.starttls()
+                # s.login(configs['user'], configs['pass'])
+                
+                s.send_message(msg)
+                print(f"Email sent successfully: {msg['Subject']}")
+                return True
+
+    except smtplib.SMTPConnectError:
+        print("Error: Could not connect to the SMTP server. Check the address/port.")
+    except smtplib.SMTPAuthenticationError:
+        print("Error: SMTP Authentication failed. Check your credentials.")
+    except Exception as e:
+        print(f"An unexpected error occurred while sending email: {e}")
+        
+    return False
 
 def main():
     global thelogger
@@ -277,4 +311,4 @@ def main():
     print('Done!')
 
 if __name__ == '__main__':
-  main()
+    main()
