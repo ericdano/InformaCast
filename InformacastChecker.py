@@ -183,9 +183,9 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     else:
         msg['Subject'] = str("InformaCast Speaker Statuses - Problems Found! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
-    #msg['To'] = 'alltechnicians@auhsdschools.org'
+    msg['To'] = 'alltechnicians@auhsdschools.org'
     # test message to self
-    msg['To'] = 'edannewitz@auhsdschools.org'
+    # msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
     try:
             # Using 'with' automatically handles s.quit() even if an error occurs
