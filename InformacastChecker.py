@@ -9,8 +9,9 @@ from logging.handlers import SysLogHandler
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 """
-This script checks InformaCast for IP Speakers that are not registered and sends email notifications.
+This script checks InformaCast for IP Speakers that are not registered and sends email notifications to Techs to address.
 Version 0.1 - Initial version 1-9-2024
+Version 1.0 - Updated with pagination support and improved email formatting 1-28-2026
 
 """
 #load configs
@@ -78,8 +79,6 @@ def fetch_all_informa_cast_data(base_url, token, configs, limit=100):
             break
     
     all_records.drop(columns=['index'], inplace=True)
-    #print(all_records)
-    # The above is for testing purposes only
     return all_records
 
 def send_error_email(error_message,configs):
@@ -95,7 +94,7 @@ def send_error_email(error_message,configs):
     msg = MIMEMultipart()
     #msg['To'] = 'edannewitz@auhsdschools.org'
     # test message to self
-    msg['To'] = 'edannewitz@auhsdschools.org'
+    msg['To'] = 'alltechnicians@auhsdschools.org,edannewitz@auhsdschools.org'
     msg['From'] = configs['SMTPAddressFrom']
     msg['Subject'] = str("InformaCast Speaker Status Checker Error "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
 
@@ -103,10 +102,6 @@ def send_error_email(error_message,configs):
     try:
             # Using 'with' automatically handles s.quit() even if an error occurs
             with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
-                # Uncomment if your server requires authentication:
-                # s.starttls()
-                # s.login(configs['user'], configs['pass'])
-                
                 s.send_message(msg)
                 print(f"Email sent successfully {msg['Subject']}")
                 return True
@@ -161,21 +156,23 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
         </head>
         <body>
             <p>There are {total_phones} Cisco Phones and {total_speakers} IP Speakers registered in InformaCast.
-            <p>
-    """
+            <p>"""
     if problem_speakers.empty:
         whichheader = 1
-        html_body += f"""<p>Good job team, there appear to be NO unregistered IP Speakers at the moment!</p>
-        <p><p>
-        </html>
-    """
+        html_body += f"""
+            <p>Good job team, there appear to be NO unregistered IP Speakers at the moment!</p>
+            <p><p>"""
     else:
         html_body += f"""
             <p>Current IP Speakers that are NOT registered:</p>
             {html_table_problems}
-            <p><p>
+            <p><p>"""
+    html_body += f"""
+            <p>------------------------------------------------------------</p>
+            <p>This report was generated automatically via Python.</p>
         </body>
-        </html>
+    </html>
+
     """
     msg = MIMEMultipart()
     if whichheader == 1:
@@ -190,10 +187,6 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     try:
             # Using 'with' automatically handles s.quit() even if an error occurs
             with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
-                # Uncomment if your server requires authentication:
-                # s.starttls()
-                # s.login(configs['user'], configs['pass'])
-                
                 s.send_message(msg)
                 print(f"Email sent successfully {msg['Subject']}")
                 return True
@@ -252,10 +245,12 @@ def send_status_email_details(problem_speakers,all_speakers,total_speakers, tota
             <p><p>
             <p>All IP Speakers:</p>
             {html_all}
+            <p><p>
+            <p>------------------------------------------------------------</p>
+            <p>This report was generated automatically via Python.</p>
         </body>
         </html>
     """
-    s = smtplib.SMTP(configs['SMTPServerAddress'])
     msg = MIMEMultipart()
     msg['Subject'] = str("InformaCast Speaker Statuses (Detailed) "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     msg['From'] = configs['SMTPAddressFrom']
@@ -264,10 +259,6 @@ def send_status_email_details(problem_speakers,all_speakers,total_speakers, tota
     try:
             # Using 'with' automatically handles s.quit() even if an error occurs
             with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
-                # Uncomment if your server requires authentication:
-                # s.starttls()
-                # s.login(configs['user'], configs['pass'])
-                
                 s.send_message(msg)
                 print(f"Email sent successfully: {msg['Subject']}")
                 return True
