@@ -96,8 +96,8 @@ def send_error_email(error_message,configs):
         </body>
     </html>
     """
-    s = smtplib.SMTP(configs['SMTPServerAddress'])
-    msg = MIMEMultipart()
+    #s = smtplib.SMTP(configs['SMTPServerAddress'])
+    #msg = MIMEMultipart()
     msg['To'] = 'alltechnicians@auhsdschools.org'
     # test message to self
     #msg['To'] = 'edannewitz@auhsdschools.org'
@@ -172,7 +172,25 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     # test message to self
     #msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
-    s.send_message(msg)
+    try:
+            # Using 'with' automatically handles s.quit() even if an error occurs
+            with smtplib.SMTP(configs['SMTPServerAddress'], timeout=10) as s:
+                # Uncomment if your server requires authentication:
+                # s.starttls()
+                # s.login(configs['user'], configs['pass'])
+                
+                s.send_message(msg)
+                print(f"Email sent successfully: {subject_status}")
+                return True
+
+    except smtplib.SMTPConnectError:
+        print("Error: Could not connect to the SMTP server. Check the address/port.")
+    except smtplib.SMTPAuthenticationError:
+        print("Error: SMTP Authentication failed. Check your credentials.")
+    except Exception as e:
+        print(f"An unexpected error occurred while sending email: {e}")
+        
+    return False
 
 def send_status_email_details(problem_speakers,all_speakers,total_speakers, total_phones,configs):
     html_table_problems = problem_speakers.to_html(index=False, justify='left', classes='red-table')
