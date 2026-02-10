@@ -84,7 +84,7 @@ def fetch_all_informa_cast_data(base_url, token, configs, limit=100):
 def send_error_email(error_message,configs):
     html_body = f"""
     <html>
-        <head>
+        <head></head>
         <body>
             <p>There was some sorta connection issue with informacast while trying to fetch data.</p>
             <p>{error_message}</p>
@@ -190,7 +190,6 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
                 s.send_message(msg)
                 print(f"Email sent successfully {msg['Subject']}")
                 return True
-
     except smtplib.SMTPConnectError:
         print("Error: Could not connect to the SMTP server. Check the address/port.")
     except smtplib.SMTPAuthenticationError:
