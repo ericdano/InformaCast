@@ -96,7 +96,7 @@ def send_error_email(error_message,configs):
     # test message to self
     msg['To'] = 'alltechnicians@auhsdschools.org,edannewitz@auhsdschools.org'
     msg['From'] = configs['SMTPAddressFrom']
-    msg['Subject'] = str("InformaCast Speaker Status Checker Error "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    msg['Subject'] = f"🔴 Error: {configs['SMTPStatusMessage']} Check Speaker Status {datetime.datetime.now().strftime('%I:%M%p on %B %d, %Y')}"
 
     msg.attach(MIMEText(html_body,'html'))
     try:
@@ -176,9 +176,9 @@ def send_status_email(problem_speakers,total_speakers, total_phones,configs):
     """
     msg = MIMEMultipart()
     if whichheader == 1:
-        msg['Subject'] = str("InformaCast Speaker Statuses - All Good! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+        msg['Subject'] = f"🟢 {configs['SMTPStatusMessage']} Check Speaker Status {datetime.datetime.now().strftime('%I:%M%p on %B %d, %Y')}"
     else:
-        msg['Subject'] = str("InformaCast Speaker Statuses - Problems Found! "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+        msg['Subject'] = f"🔴 {configs['SMTPStatusMessage']} Check Speaker Status {datetime.datetime.now().strftime('%I:%M%p on %B %d, %Y')}"
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'alltechnicians@auhsdschools.org'
     # test message to self
@@ -251,7 +251,7 @@ def send_status_email_details(problem_speakers,all_speakers,total_speakers, tota
         </html>
     """
     msg = MIMEMultipart()
-    msg['Subject'] = str("InformaCast Speaker Statuses (Detailed) "  + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
+    msg['Subject'] = f"🟢 {configs['SMTPStatusMessage']} Check Speaker Status {datetime.datetime.now().strftime('%I:%M%p on %B %d, %Y')}"
     msg['From'] = configs['SMTPAddressFrom']
     msg['To'] = 'edannewitz@auhsdschools.org'
     msg.attach(MIMEText(html_body,'html'))
