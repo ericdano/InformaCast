@@ -50,12 +50,12 @@ def send_status_email(changes):
     email_to = configs.get('SendInfoEmailAddr')
 
     if not all([smtp_server, email_from, email_to]):
-        print("  [Warning] Email configuration incomplete in Acalanes.json. Cannot send report.")
+        print("🔴 [Warning] Email configuration incomplete in Acalanes.json. Cannot send report.")
         return
 
     # Create a dynamic subject line
     status_label = f"{len(changes)} Changes" if changes else "Heartbeat - No Changes"
-    subject = f"Network Sync Report: {status_label}"
+    subject = f"🟢 Acalanes Event Log - Network Sync Report: {status_label}"
     
     # Build the body content
     if changes:

@@ -70,12 +70,12 @@ def send_status_email(changes):
         return
 
     if changes:
-        subject = f"Switch Sync Report: {len(changes)} Changes Detected"
+        subject = f"🟡 Acalanes Event Log - Switch Sync Report: {len(changes)} Changes Detected"
         body = "The NetBox to Zabbix Switch integration script completed a run and made the following updates:\n\n"
         for change in changes:
             body += f" - {change}\n"
     else:
-        subject = "Switch Sync Report: No Changes (Routine Check)"
+        subject = "🟢 Acalanes Event Log - Switch Sync Report: No Changes (Routine Check)"
         body = "The NetBox to Zabbix Switch integration script completed a run successfully. All switches are currently in sync. No changes were necessary.\n"
         print("  -> No major changes detected. Sending confirmation email.")
         
