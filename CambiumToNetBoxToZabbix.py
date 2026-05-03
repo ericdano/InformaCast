@@ -41,14 +41,11 @@ except Exception as e:
 # Email Reporting Function
 # ==========================================
 def send_status_email(changes):
-    """Sends an email report if any changes were made during the sync."""
-    if not changes:
-        print("\nNo major changes detected. Skipping email report.")
-        return
-
-    print("\nPreparing status email...")
+    """Sends an email report for every run, even if no changes were made."""
+    print("\nPreparing status email (Heartbeat)...")
+    
     smtp_server = configs.get('SMTPServerAddress')
-    smtp_port = configs.get('SMTP_Port', 25) # Defaulting to port 25
+    smtp_port = configs.get('SMTP_Port', 25) 
     email_from = configs.get('SMTPAddressFrom')
     email_to = configs.get('SendInfoEmailAddr')
 
@@ -56,11 +53,17 @@ def send_status_email(changes):
         print("  [Warning] Email configuration incomplete in Acalanes.json. Cannot send report.")
         return
 
-    subject = f"Network Sync Report: {len(changes)} Changes Detected"
+    # Create a dynamic subject line
+    status_label = f"{len(changes)} Changes" if changes else "Heartbeat - No Changes"
+    subject = f"Network Sync Report: {status_label}"
     
-    body = "The Cambium integration script just completed a run and made the following updates:\n\n"
-    for change in changes:
-        body += f" - {change}\n"
+    # Build the body content
+    if changes:
+        body = "The Cambium integration script completed and made the following updates:\n\n"
+        for change in changes:
+            body += f" - {change}\n"
+    else:
+        body = "The Cambium integration script completed successfully. No changes were necessary at this time."
         
     body += "\n\nEnd of Report."
 
@@ -75,7 +78,7 @@ def send_status_email(changes):
         server = smtplib.SMTP(smtp_server, int(smtp_port))
         server.send_message(msg)
         server.quit()
-        print(f"  -> Email report successfully sent to {email_to}")
+        print(f"  -> Heartbeat email successfully sent to {email_to}")
     except Exception as e:
         print(f"  -> Failed to send email: {e}")
 
