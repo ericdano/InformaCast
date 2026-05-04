@@ -63,7 +63,7 @@ def send_status_email(changes):
     smtp_server = configs.get('SMTPServerAddress')
     smtp_port = configs.get('SMTP_Port', 25)
     email_from = configs.get('SMTPAddressFrom')
-    email_to = configs.get('SendInfoEmailAddr')
+    email_to = configs.get('SendInfoAllTechs')
 
     if not all([smtp_server, email_from, email_to]):
         print("  [Warning] Email configuration incomplete in Acalanes.json. Cannot send report.")
