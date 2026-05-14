@@ -170,13 +170,14 @@ def get_cambium_aps(base_url, client_id, client_secret, api_server_url, initial_
 # NetBox & Zabbix Functions
 # ==========================================
 def assign_ip_to_netbox_device(nb, device, ip_address):
-    """Creates an interface, assigns the IP, and sets it as Primary IPv4."""
+    """Creates an interface, assigns the IP, and safely updates the Primary IPv4."""
     if not ip_address:
         return
 
     ip_cidr = f"{ip_address}/24"
     interface_name = "wlan0"
 
+    # 1. Ensure an interface exists on the current device
     interface = nb.dcim.interfaces.get(device_id=device.id, name=interface_name)
     if not interface:
         interface = nb.dcim.interfaces.create(
@@ -185,19 +186,45 @@ def assign_ip_to_netbox_device(nb, device, ip_address):
             type="other"
         )
 
+    # 2. Check IPAM to see if this IP already exists
     ip_obj = nb.ipam.ip_addresses.get(address=ip_cidr)
+    
     if ip_obj:
+        # If the IP exists but is assigned to a DIFFERENT interface, we must move it
         if getattr(ip_obj, 'assigned_object_id', None) != interface.id:
+            
+            # --- THE LOCK BREAKER ---
+            # If the IP is tied to another device, we must un-set it as their primary IP first
+            try:
+                if getattr(ip_obj, 'assigned_object_type', None) == 'dcim.interface':
+                    old_interface = nb.dcim.interfaces.get(id=ip_obj.assigned_object_id)
+                    if old_interface and getattr(old_interface, 'device', None):
+                        old_device = nb.dcim.devices.get(id=old_interface.device.id)
+                        
+                        # Check if this IP is currently their primary IP
+                        if old_device and getattr(old_device, 'primary_ip4', None):
+                            if old_device.primary_ip4.id == ip_obj.id:
+                                print(f"    [NetBox] DHCP Shift: Clearing {ip_cidr} as primary IP from {old_device.name}...")
+                                old_device.primary_ip4 = None
+                                old_device.save()
+            except Exception as e:
+                print(f"    [Warning] Could not clear old primary IP status for {ip_cidr}: {e}")
+            # ------------------------
+
+            # Now that the old device is cleared, we can safely steal the IP
             ip_obj.assigned_object_type = "dcim.interface"
             ip_obj.assigned_object_id = interface.id
             ip_obj.save()
+            
     else:
+        # Create the IP from scratch if it doesn't exist at all
         ip_obj = nb.ipam.ip_addresses.create(
             address=ip_cidr,
             assigned_object_type="dcim.interface",
             assigned_object_id=interface.id
         )
 
+    # 3. Finally, set this IP as the primary IPv4 for OUR current device
     current_primary = getattr(device, 'primary_ip4', None)
     if not current_primary or current_primary.id != ip_obj.id:
         device.primary_ip4 = ip_obj.id
