@@ -36,7 +36,18 @@ def add_onboarding_user(api_server_url, token, portal_name, new_user_data):
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
+    
     response = requests.post(endpoint_url, headers=headers, json=new_user_data, timeout=10)
+    
+    # --- Rate Limit Handler ---
+    if response.status_code == 429:
+        # Default to 60 seconds if Cambium doesn't specify a wait time
+        retry_after = int(response.headers.get("Retry-After", 60)) 
+        logger.warning(f"Rate limit hit during import! Pausing for {retry_after} seconds before resuming...")
+        time.sleep(retry_after)
+        # Recursively call the function to try again
+        return add_onboarding_user(api_server_url, token, portal_name, new_user_data)
+        
     response.raise_for_status()
     return response.json()
 
@@ -265,15 +276,25 @@ if __name__ == '__main__':
                         logger.info("No users found to delete.")
                         continue
                     
-                    # Extract IDs
                     all_ids = [str(u.get("user_id") or u.get("id")) for u in users_to_delete if u.get("user_id") or u.get("id")]
                     logger.info(f"Found {len(all_ids)} users. Beginning batch deletion...")
                     
-                    # Process in chunks of 50 to avoid payload size limits
                     chunk_size = 50
                     for i in range(0, len(all_ids), chunk_size):
                         batch = all_ids[i:i + chunk_size]
-                        delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                        
+                        # --- TOKEN AUTO-RENEWAL BLOCK ---
+                        try:
+                            delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                        except requests.exceptions.HTTPError as e:
+                            if e.response is not None and e.response.status_code == 401:
+                                logger.warning("Token expired during batch deletion! Re-authenticating...")
+                                token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
+                                # Retry the failed batch with the new token
+                                delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                            else:
+                                raise e # Re-raise if it's a different HTTP error
+                                
                         logger.info(f"Deleted batch {i // chunk_size + 1} ({len(batch)} users)...")
                         time.sleep(0.5)
                             
@@ -297,7 +318,18 @@ if __name__ == '__main__':
                         chunk_size = 50
                         for i in range(0, len(all_ids), chunk_size):
                             batch = all_ids[i:i + chunk_size]
-                            delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                            
+                            # --- TOKEN AUTO-RENEWAL BLOCK ---
+                            try:
+                                delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                            except requests.exceptions.HTTPError as e:
+                                if e.response is not None and e.response.status_code == 401:
+                                    logger.warning("Token expired during wipe! Re-authenticating...")
+                                    token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
+                                    delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                                else:
+                                    raise e
+                                    
                             time.sleep(0.5)
                         logger.info("✅ Bulk wipe complete.")
                     
@@ -324,17 +356,34 @@ if __name__ == '__main__':
                             "expire": False
                         }
                         
+                        # --- TOKEN AUTO-RENEWAL BLOCK ---
                         try:
                             add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
                             added_count += 1
                             if added_count % 100 == 0:
                                 logger.info(f"Import progress: {added_count} users added...")
+                                
+                            # Polite pause to avoid triggering 429 rate limits
+                            time.sleep(0.1) 
+                                
+                        except requests.exceptions.HTTPError as e:
+                            if e.response is not None and e.response.status_code == 401:
+                                logger.warning("Token expired during import! Re-authenticating...")
+                                token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
+                                # Retry the exact same student addition
+                                add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
+                                added_count += 1
+                                if added_count % 100 == 0:
+                                    logger.info(f"Import progress: {added_count} users added...")
+                            else:
+                                logger.error(f"Failed to add student {row['SEM']}: {e}")
+                                
                         except Exception as e:
                             logger.error(f"Failed to add student {row['SEM']}: {e}")
                             
                     logger.info(f"✅ Successfully imported {added_count} users from AERIES Live to Cambium.")
                 else:
-                    logger.info("Wipe & Sync canceled.") 
+                    logger.info("Wipe & Sync canceled.")
 
             elif choice == '6':
                 logger.info("Exiting Cambium API Manager.")
