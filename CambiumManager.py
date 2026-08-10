@@ -39,13 +39,10 @@ def add_onboarding_user(api_server_url, token, portal_name, new_user_data):
     
     response = requests.post(endpoint_url, headers=headers, json=new_user_data, timeout=10)
     
-    # --- Rate Limit Handler ---
     if response.status_code == 429:
-        # Default to 60 seconds if Cambium doesn't specify a wait time
         retry_after = int(response.headers.get("Retry-After", 60)) 
         logger.warning(f"Rate limit hit during import! Pausing for {retry_after} seconds before resuming...")
         time.sleep(retry_after)
-        # Recursively call the function to try again
         return add_onboarding_user(api_server_url, token, portal_name, new_user_data)
         
     response.raise_for_status()
@@ -70,25 +67,18 @@ def update_user_passphrase(api_server_url, token, portal_name, user_id, new_pass
     return response.json()
 
 def delete_users_action(api_server_url, token, portal_name, user_ids):
-    """
-    Sends a PUT request to Cambium's action endpoint to bulk delete users.
-    'user_ids' should be a list of user_id strings, e.g., ["1013477", "1013478"]
-    """
     endpoint_url = f"{api_server_url}/api/v2/easypass/{portal_name}/onboarding/users/action"
-    
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    
     payload = {
         "action": "delete",
         "user_ids": user_ids if isinstance(user_ids, list) else [user_ids],
         "managed_account": "Acalanes Union High School"
     }
     
-    # CRITICAL FIX: Changed requests.post to requests.put
     response = requests.put(endpoint_url, headers=headers, json=payload, timeout=30)
     
     if response.status_code == 429:
@@ -98,13 +88,9 @@ def delete_users_action(api_server_url, token, portal_name, user_ids):
         return delete_users_action(api_server_url, token, portal_name, user_ids)
         
     response.raise_for_status()
-    
-    # A successful PUT often returns a 204 No Content (meaning no text body to parse)
     if response.status_code == 204:
         return True
-        
     return response.json() if response.text else response.status_code
-
 
 def get_all_paginated_users(base_url, client_id, client_secret, api_server_url, initial_token, portal_name):
     endpoint_url = f"{api_server_url}/api/v2/easypass/{portal_name}/onboarding/users"
@@ -222,11 +208,12 @@ if __name__ == '__main__':
         print("2. Update an existing user's passphrase")
         print("3. Sync Cambium users to local Database")
         print("4. DELETE ALL USERS in Cambium (Danger Zone)")
-        print("5. WIPE Cambium AND Sync from AERIES Live")
-        print("6. Quit")
+        print("5. WIPE Cambium Users ONLY (No Import)")
+        print("6. Generate CSV Import File from AERIES")
+        print("7. Quit")
         print("="*50)
         
-        choice = input("Select an option (1-6): ").strip()
+        choice = input("Select an option (1-7): ").strip()
 
         try:
             if choice == '1':
@@ -264,52 +251,12 @@ if __name__ == '__main__':
                 logger.info(f"Downloaded {len(master_user_list)} users. Saving to database...")
                 store_users_in_db(pd.DataFrame(master_user_list), aeries_local_conn_str)
 
-            elif choice == '4':
-                print("\n--- ⚠️ DELETE ALL USERS ⚠️ ---")
-                confirm = input("Are you absolutely sure you want to delete ALL users? Type 'YES' to confirm: ")
+            elif choice == '4' or choice == '5':
+                print("\n--- ⚠️ WIPE CAMBIUM USERS ⚠️ ---")
+                confirm = input("This will DELETE ALL USERS in Cambium. Type 'YES' to confirm: ")
                 
                 if confirm == 'YES':
-                    logger.info("Fetching current user list to begin deletion...")
-                    users_to_delete = get_all_paginated_users(BASE_URL, CLIENT_ID, CLIENT_SECRET, api_server_url, token, PORTAL_NAME)
-                    
-                    if not users_to_delete:
-                        logger.info("No users found to delete.")
-                        continue
-                    
-                    all_ids = [str(u.get("user_id") or u.get("id")) for u in users_to_delete if u.get("user_id") or u.get("id")]
-                    logger.info(f"Found {len(all_ids)} users. Beginning batch deletion...")
-                    
-                    chunk_size = 50
-                    for i in range(0, len(all_ids), chunk_size):
-                        batch = all_ids[i:i + chunk_size]
-                        
-                        # --- TOKEN AUTO-RENEWAL BLOCK ---
-                        try:
-                            delete_users_action(api_server_url, token, PORTAL_NAME, batch)
-                        except requests.exceptions.HTTPError as e:
-                            if e.response is not None and e.response.status_code == 401:
-                                logger.warning("Token expired during batch deletion! Re-authenticating...")
-                                token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
-                                # Retry the failed batch with the new token
-                                delete_users_action(api_server_url, token, PORTAL_NAME, batch)
-                            else:
-                                raise e # Re-raise if it's a different HTTP error
-                                
-                        logger.info(f"Deleted batch {i // chunk_size + 1} ({len(batch)} users)...")
-                        time.sleep(0.5)
-                            
-                    logger.info(f"✅ Successfully wiped all users from Cambium Onboarding.")
-                else:
-                    logger.info("Deletion canceled.")
-
-            elif choice == '5':
-                print("\n--- ⚠️ WIPE CAMBIUM AND SYNC FROM AERIES ⚠️ ---")
-                confirm = input("This will DELETE ALL USERS in Cambium and pull a fresh list from AERIES. Type 'YES' to confirm: ")
-                
-                if confirm == 'YES':
-                    logger.info("Starting bulk wipe and AERIES sync process.")
-                    
-                    # --- 1. Delete all existing Cambium users in batches ---
+                    logger.info("Starting bulk wipe process.")
                     users_to_delete = get_all_paginated_users(BASE_URL, CLIENT_ID, CLIENT_SECRET, api_server_url, token, PORTAL_NAME)
                     all_ids = [str(u.get("user_id") or u.get("id")) for u in users_to_delete if u.get("user_id") or u.get("id")]
                     
@@ -319,7 +266,6 @@ if __name__ == '__main__':
                         for i in range(0, len(all_ids), chunk_size):
                             batch = all_ids[i:i + chunk_size]
                             
-                            # --- TOKEN AUTO-RENEWAL BLOCK ---
                             try:
                                 delete_users_action(api_server_url, token, PORTAL_NAME, batch)
                             except requests.exceptions.HTTPError as e:
@@ -332,65 +278,56 @@ if __name__ == '__main__':
                                     
                             time.sleep(0.5)
                         logger.info("✅ Bulk wipe complete.")
-                    
-                    # --- 2. Query AERIES Live ---
-                    query = "SELECT ln, fn, ID, SEM, NID FROM STU WHERE DEL = 0 AND SEM IS NOT NULL AND SEM != ''"
-                    logger.info("Querying AERIES Live Database for active students...")
-                    df_aeries = pd.read_sql(query, aeries_engine)
-                    
-                    logger.info(f"Found {len(df_aeries)} students in AERIES. Beginning import to Cambium...")
-                    
-                    # --- 3. Import to Cambium ---
-                    added_count = 0
-                    for index, row in df_aeries.iterrows():
-                        if pd.isna(row['ID']) or pd.isna(row['SEM']):
-                            continue
-                            
-                        new_student = {
-                            "username": f"{str(row['ln']).strip()}, {str(row['fn']).strip()}",
-                            "user_id": str(row['ID']).strip(),
-                            "email": str(row['SEM']).strip(),
-                            "passphrase": str(row['NID']).strip(),
-                            "device_limit": 2,
-                            "managed_account": "Acalanes Union High School",
-                            "expire": False
-                        }
-                        
-                        # --- TOKEN AUTO-RENEWAL BLOCK ---
-                        try:
-                            add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
-                            added_count += 1
-                            if added_count % 100 == 0:
-                                logger.info(f"Import progress: {added_count} users added...")
-                                
-                            # Polite pause to avoid triggering 429 rate limits
-                            time.sleep(0.1) 
-                                
-                        except requests.exceptions.HTTPError as e:
-                            if e.response is not None and e.response.status_code == 401:
-                                logger.warning("Token expired during import! Re-authenticating...")
-                                token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
-                                # Retry the exact same student addition
-                                add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
-                                added_count += 1
-                                if added_count % 100 == 0:
-                                    logger.info(f"Import progress: {added_count} users added...")
-                            else:
-                                logger.error(f"Failed to add student {row['SEM']}: {e}")
-                                
-                        except Exception as e:
-                            logger.error(f"Failed to add student {row['SEM']}: {e}")
-                            
-                    logger.info(f"✅ Successfully imported {added_count} users from AERIES Live to Cambium.")
+                    else:
+                        logger.info("No users found in Cambium to wipe.")
                 else:
-                    logger.info("Wipe & Sync canceled.")
+                    logger.info("Wipe canceled.")
 
             elif choice == '6':
+                print("\n--- GENERATE CSV FROM AERIES ---")
+                logger.info("Querying AERIES Live Database for active students...")
+                
+                # Retrieve active records holding an email
+                query = f"""SELECT ln, fn, ID, SEM, NID 
+                            FROM STU 
+                            WHERE DEL = 0 AND TG=''
+                            AND SC IN ('1','2','3','4','5','6') AND SEM IS NOT NULL AND SEM != ''"""
+                df_aeries = pd.read_sql(query, aeries_engine)
+                
+                logger.info(f"Found {len(df_aeries)} students in AERIES. Formatting CSV...")
+                
+                csv_data = []
+                for index, row in df_aeries.iterrows():
+                    if pd.isna(row['ID']) or pd.isna(row['SEM']):
+                        continue
+                    
+                    # Mapping to Cambium's exact CSV Headers
+                    csv_data.append({
+                        "User Name": f"{str(row['ln']).strip()}, {str(row['fn']).strip()}",
+                        "User Id": str(row['ID']).strip(),
+                        "Email": str(row['SEM']).strip(),
+                        "Group": "Acalanes Union High School",
+                        "Passphrase": str(row['NID']).strip(),
+                        "Note": "",
+                        "Activation": "",
+                        "Expiration": "",
+                        "Devices Limit": 2
+                    })
+                
+                # Convert the cleanly mapped list to a DataFrame and export
+                export_df = pd.DataFrame(csv_data)
+                csv_filename = "Cambium_Users_Export.csv"
+                export_df.to_csv(csv_filename, index=False)
+                
+                logger.info(f"✅ Successfully generated '{csv_filename}' with {len(csv_data)} records in the current directory.")
+                logger.info("You can now navigate to your Cambium Portal and upload this CSV file directly.")
+
+            elif choice == '7':
                 logger.info("Exiting Cambium API Manager.")
                 break
                 
             else:
-                logger.warning("Invalid choice. Please select 1-6.")
+                logger.warning("Invalid choice. Please select 1-7.")
                 
         except requests.exceptions.HTTPError as http_err:
             logger.error(f"HTTP error occurred: {http_err}")
