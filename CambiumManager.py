@@ -58,23 +58,42 @@ def update_user_passphrase(api_server_url, token, portal_name, user_id, new_pass
         return {"status": "success", "message": "Passphrase updated successfully"}
     return response.json()
 
-def delete_user(api_server_url, token, portal_name, user_id):
-    endpoint_url = f"{api_server_url}/api/v2/easypass/{portal_name}/onboarding/users/{user_id}"
+def delete_users_action(api_server_url, token, portal_name, user_ids):
+    """
+    Sends a PUT request to Cambium's action endpoint to bulk delete users.
+    'user_ids' should be a list of user_id strings, e.g., ["1013477", "1013478"]
+    """
+    endpoint_url = f"{api_server_url}/api/v2/easypass/{portal_name}/onboarding/users/action"
+    
     headers = {
         "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    response = requests.delete(endpoint_url, headers=headers, timeout=10)
     
-    # Handle rate limiting during bulk deletes
+    payload = {
+        "action": "delete",
+        "user_ids": user_ids if isinstance(user_ids, list) else [user_ids],
+        "managed_account": "Acalanes Union High School"
+    }
+    
+    # CRITICAL FIX: Changed requests.post to requests.put
+    response = requests.put(endpoint_url, headers=headers, json=payload, timeout=30)
+    
     if response.status_code == 429:
         retry_after = int(response.headers.get("Retry-After", 60))
         logger.warning(f"Rate limit hit! Pausing for {retry_after} seconds before retrying...")
         time.sleep(retry_after)
-        return delete_user(api_server_url, token, portal_name, user_id)
+        return delete_users_action(api_server_url, token, portal_name, user_ids)
         
     response.raise_for_status()
-    return response.status_code
+    
+    # A successful PUT often returns a 204 No Content (meaning no text body to parse)
+    if response.status_code == 204:
+        return True
+        
+    return response.json() if response.text else response.status_code
+
 
 def get_all_paginated_users(base_url, client_id, client_secret, api_server_url, initial_token, portal_name):
     endpoint_url = f"{api_server_url}/api/v2/easypass/{portal_name}/onboarding/users"
@@ -245,18 +264,20 @@ if __name__ == '__main__':
                     if not users_to_delete:
                         logger.info("No users found to delete.")
                         continue
-                        
-                    logger.info(f"Found {len(users_to_delete)} users. Beginning deletion loop...")
-                    deleted_count = 0
                     
-                    for u in users_to_delete:
-                        u_id = u.get("user_id") or u.get("id")
-                        if u_id:
-                            delete_user(api_server_url, token, PORTAL_NAME, u_id)
-                            deleted_count += 1
-                            time.sleep(0.1) 
+                    # Extract IDs
+                    all_ids = [str(u.get("user_id") or u.get("id")) for u in users_to_delete if u.get("user_id") or u.get("id")]
+                    logger.info(f"Found {len(all_ids)} users. Beginning batch deletion...")
+                    
+                    # Process in chunks of 50 to avoid payload size limits
+                    chunk_size = 50
+                    for i in range(0, len(all_ids), chunk_size):
+                        batch = all_ids[i:i + chunk_size]
+                        delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                        logger.info(f"Deleted batch {i // chunk_size + 1} ({len(batch)} users)...")
+                        time.sleep(0.5)
                             
-                    logger.info(f"Wiped {deleted_count} users from Cambium Onboarding.")
+                    logger.info(f"✅ Successfully wiped all users from Cambium Onboarding.")
                 else:
                     logger.info("Deletion canceled.")
 
@@ -267,20 +288,21 @@ if __name__ == '__main__':
                 if confirm == 'YES':
                     logger.info("Starting bulk wipe and AERIES sync process.")
                     
-                    # --- 1. Delete all existing Cambium users ---
+                    # --- 1. Delete all existing Cambium users in batches ---
                     users_to_delete = get_all_paginated_users(BASE_URL, CLIENT_ID, CLIENT_SECRET, api_server_url, token, PORTAL_NAME)
-                    deleted_count = 0
-                    for u in users_to_delete:
-                        u_id = u.get("user_id") or u.get("id")
-                        if u_id:
-                            delete_user(api_server_url, token, PORTAL_NAME, u_id)
-                            deleted_count += 1
-                            time.sleep(0.1)
-                    logger.info(f"Successfully wiped {deleted_count} users from Cambium Onboarding.")
+                    all_ids = [str(u.get("user_id") or u.get("id")) for u in users_to_delete if u.get("user_id") or u.get("id")]
+                    
+                    if all_ids:
+                        logger.info(f"Wiping {len(all_ids)} existing users from Cambium...")
+                        chunk_size = 50
+                        for i in range(0, len(all_ids), chunk_size):
+                            batch = all_ids[i:i + chunk_size]
+                            delete_users_action(api_server_url, token, PORTAL_NAME, batch)
+                            time.sleep(0.5)
+                        logger.info("✅ Bulk wipe complete.")
                     
                     # --- 2. Query AERIES Live ---
-                    # Using DEL = 0 to only pull active records, and ensuring no blank emails
-                    query = f"""SELECT ln, fn, ID, SEM, NID FROM STU WHERE DEL = 0 AND TG = '' AND SEM IS NOT NULL AND SEM != ''"""
+                    query = "SELECT ln, fn, ID, SEM, NID FROM STU WHERE DEL = 0 AND SEM IS NOT NULL AND SEM != ''"
                     logger.info("Querying AERIES Live Database for active students...")
                     df_aeries = pd.read_sql(query, aeries_engine)
                     
@@ -289,15 +311,9 @@ if __name__ == '__main__':
                     # --- 3. Import to Cambium ---
                     added_count = 0
                     for index, row in df_aeries.iterrows():
-                        # Protect against any row where crucial ID or Email data might be unexpectedly missing
                         if pd.isna(row['ID']) or pd.isna(row['SEM']):
                             continue
                             
-                        # Mapping values to your exact specifications:
-                        # username -> STU.ln, STU.fn
-                        # user_id -> STU.ID
-                        # email -> STU.SEM
-                        # passphrase -> STU.NID
                         new_student = {
                             "username": f"{str(row['ln']).strip()}, {str(row['fn']).strip()}",
                             "user_id": str(row['ID']).strip(),
@@ -311,7 +327,6 @@ if __name__ == '__main__':
                         try:
                             add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
                             added_count += 1
-                            # Log every 100 users just to show progress on big jobs
                             if added_count % 100 == 0:
                                 logger.info(f"Import progress: {added_count} users added...")
                         except Exception as e:
@@ -319,7 +334,7 @@ if __name__ == '__main__':
                             
                     logger.info(f"✅ Successfully imported {added_count} users from AERIES Live to Cambium.")
                 else:
-                    logger.info("Wipe & Sync canceled.")
+                    logger.info("Wipe & Sync canceled.") 
 
             elif choice == '6':
                 logger.info("Exiting Cambium API Manager.")
