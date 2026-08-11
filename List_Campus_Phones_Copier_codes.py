@@ -83,9 +83,9 @@ if __name__ == "__main__":
     global msgbody, logger, gstatus
     configs = getConfigs()
     gstatus = ''
-    
+    os.chdir(configs['PythonTempDirectory'])
     # Setup Logging
-    logger = logging.getLogger('Expire AD Accounts Script')
+    logger = logging.getLogger('Update Staff Phone & Copier Lists Google Sheet')
     logger.setLevel(logging.INFO)
     console_handler = logging.StreamHandler()
     syslog_handler = logging.handlers.SysLogHandler(address=(configs['logserveraddress'], 514))
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             # Use Pandas to create the DataFrame and export it
             df = pd.DataFrame(combined_users)
             df = df[["Name", "Description", "Phone", "Copier Code", "Domain"]]
-            
+            df = df.sort_values(by='Name', ascending=True)
             export_path = f"Combined_{school}_Staff.csv"
             df.to_csv(export_path, index=False, encoding='utf-8-sig')
             logger.info(f"Successfully exported {len(df)} users to: {export_path}")
@@ -134,12 +134,14 @@ if __name__ == "__main__":
             sheet_id = sheet_url.split('/d/')[1].split('/')[0]
             
             # Build the GAM command. (Adjust standard vs GAMADV syntax if needed)
-            gam_cmd = f"gam user {gam_admin} update drivefile {sheet_id} localfile {export_path}"
+            gam_cmd = f"""gam user {gam_admin} update drivefile {sheet_id} retainname localfile {export_path} csvsheet "{school} Phone and Copier Extensions" """
             
             logger.info(f"Uploading {export_path} to Google Sheet via GAM...")
             try:
                 # Use subprocess to fire the GAM command
                 subprocess.run(gam_cmd, shell=True, check=True, capture_output=True, text=True)
                 logger.info(f"Successfully updated Google Sheet for {school}.")
+                os.remove(export_path)
+                logger.info(f"Removed {export_path}.")
             except subprocess.CalledProcessError as e:
                 logger.error(f"GAM upload failed for {school}. Error: {e.stderr}")
