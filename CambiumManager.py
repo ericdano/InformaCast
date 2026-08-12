@@ -210,10 +210,11 @@ if __name__ == '__main__':
         print("4. DELETE ALL USERS in Cambium (Danger Zone)")
         print("5. WIPE Cambium Users ONLY (No Import)")
         print("6. Generate CSV Import File from AERIES")
-        print("7. Quit")
+        print("7. Sync Missing Users (AERIES to Cambium)")
+        print("8. Quit")
         print("="*50)
         
-        choice = input("Select an option (1-7): ").strip()
+        choice = input("Select an option (1-8): ").strip()
 
         try:
             if choice == '1':
@@ -287,7 +288,6 @@ if __name__ == '__main__':
                 print("\n--- GENERATE CSV FROM AERIES ---")
                 logger.info("Querying AERIES Live Database for active students...")
                 
-                # Retrieve active records holding an email
                 query = f"""SELECT ln, fn, ID, SEM, NID 
                             FROM STU 
                             WHERE DEL = 0 AND TG=''
@@ -301,7 +301,6 @@ if __name__ == '__main__':
                     if pd.isna(row['ID']) or pd.isna(row['SEM']):
                         continue
                     
-                    # Mapping to Cambium's exact CSV Headers
                     csv_data.append({
                         "User Name": f"{str(row['ln']).strip()}, {str(row['fn']).strip()}",
                         "User Id": str(row['ID']).strip(),
@@ -314,20 +313,88 @@ if __name__ == '__main__':
                         "Devices Limit": 2
                     })
                 
-                # Convert the cleanly mapped list to a DataFrame and export
                 export_df = pd.DataFrame(csv_data)
                 csv_filename = "Cambium_Users_Export.csv"
                 export_df.to_csv(csv_filename, index=False)
                 
                 logger.info(f"✅ Successfully generated '{csv_filename}' with {len(csv_data)} records in the current directory.")
-                logger.info("You can now navigate to your Cambium Portal and upload this CSV file directly.")
 
             elif choice == '7':
+                print("\n--- SYNC MISSING USERS (AERIES TO CAMBIUM) ---")
+                
+                # 1. Grab Existing Cambium Users
+                logger.info("Fetching existing users from Cambium for comparison...")
+                cambium_users = get_all_paginated_users(BASE_URL, CLIENT_ID, CLIENT_SECRET, api_server_url, token, PORTAL_NAME)
+                
+                # Create a quick-lookup set of existing user IDs
+                existing_cambium_ids = set(str(u.get("user_id") or u.get("id")) for u in cambium_users if u.get("user_id") or u.get("id"))
+                logger.info(f"Found {len(existing_cambium_ids)} existing users in Cambium.")
+                
+                # 2. Grab AERIES Students
+                logger.info("Querying AERIES Live Database for active students...")
+                query = f"""SELECT ln, fn, ID, SEM, NID 
+                            FROM STU 
+                            WHERE DEL = 0 AND TG=''
+                            AND SC IN ('1','2','3','4','6','30') AND SEM IS NOT NULL AND SEM != ''"""
+                df_aeries = pd.read_sql(query, aeries_engine)
+                logger.info(f"Found {len(df_aeries)} active students in AERIES.")
+                
+                # 3. Delta Comparison and Addition Loop
+                added_count = 0
+                skipped_count = 0
+                
+                for index, row in df_aeries.iterrows():
+                    if pd.isna(row['ID']) or pd.isna(row['SEM']):
+                        continue
+                        
+                    student_id = str(row['ID']).strip()
+                    
+                    # If the student is already in Cambium, ignore them and continue
+                    if student_id in existing_cambium_ids:
+                        skipped_count += 1
+                        continue
+                        
+                    # Student is missing, create payload to add them
+                    new_student = {
+                        "username": f"{str(row['ln']).strip()}, {str(row['fn']).strip()}",
+                        "user_id": student_id,
+                        "email": str(row['SEM']).strip(),
+                        "passphrase": str(row['NID']).strip(),
+                        "device_limit": 2,
+                        "managed_account": "Acalanes Union High School",
+                        "expire": False
+                    }
+                    
+                    try:
+                        add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
+                        added_count += 1
+                        if added_count % 50 == 0:
+                            logger.info(f"Progress: Added {added_count} missing users...")
+                        time.sleep(0.1) # Polite pause to assist rate limit handler
+                        
+                    except requests.exceptions.HTTPError as e:
+                        # Catch token expiration and auto-renew on the fly
+                        if e.response is not None and e.response.status_code == 401:
+                            logger.warning("Token expired during delta import! Re-authenticating...")
+                            token, _ = get_access_token(BASE_URL, CLIENT_ID, CLIENT_SECRET)
+                            
+                            # Retry adding the student with the fresh token
+                            add_onboarding_user(api_server_url, token, PORTAL_NAME, new_student)
+                            added_count += 1
+                            time.sleep(0.1)
+                        else:
+                            logger.error(f"Failed to add missing student {row['SEM']}: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to add missing student {row['SEM']}: {e}")
+                        
+                logger.info(f"✅ Delta sync complete! Added {added_count} new users. Skipped {skipped_count} existing users.")
+
+            elif choice == '8':
                 logger.info("Exiting Cambium API Manager.")
                 break
                 
             else:
-                logger.warning("Invalid choice. Please select 1-7.")
+                logger.warning("Invalid choice. Please select 1-8.")
                 
         except requests.exceptions.HTTPError as http_err:
             logger.error(f"HTTP error occurred: {http_err}")

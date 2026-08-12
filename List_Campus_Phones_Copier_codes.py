@@ -18,7 +18,8 @@ SCHOOLS = [
     ["LLHS", "https://docs.google.com/spreadsheets/d/1zIFKJCTMHUMiyHS7bChh8f6_bkRmm6FArwsgnA19KIk"],
     ["MHS", "https://docs.google.com/spreadsheets/d/1X_BU4StsQ2mYXezm4FACQOVJn32eUb8wYUh4X3pa0AM"],
     ["AHS", "https://docs.google.com/spreadsheets/d/1nqv9N6i84rX7G5-ACRARRQPIcMmTmk4BLeIxiM23s5c"],
-    ["CHS", "https://docs.google.com/spreadsheets/d/1XSgGu9j4BWtJZUFaLmq5MR7UyoeqTL6ETQH-kqFUNdg"]
+    ["CHS", "https://docs.google.com/spreadsheets/d/1XSgGu9j4BWtJZUFaLmq5MR7UyoeqTL6ETQH-kqFUNdg"],
+    ["AE", "https://docs.google.com/spreadsheets/d/1OVTYfO7Ulbh9hd7l6GtRx-xK2LNIP2R78oIAh95H59U"]
 ]
 
 
